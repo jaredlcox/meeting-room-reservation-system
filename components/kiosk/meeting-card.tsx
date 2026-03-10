@@ -1,12 +1,14 @@
+import type { ReactNode } from "react";
 import type { Meeting } from "./types";
 
 interface MeetingCardProps {
   title: string;
   meeting: Meeting | null;
   emptyText: string;
+  footer?: ReactNode;
 }
 
-export function MeetingCard({ title, meeting, emptyText }: MeetingCardProps) {
+export function MeetingCard({ title, meeting, emptyText, footer }: MeetingCardProps) {
   return (
     <div className="bg-card rounded-2xl border border-border shadow-sm p-4 sm:p-5 flex flex-col gap-3 min-w-0">
       <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -36,6 +38,7 @@ export function MeetingCard({ title, meeting, emptyText }: MeetingCardProps) {
           <p className="text-base text-muted-foreground italic">{emptyText}</p>
         </div>
       )}
+      {footer ? <div className="pt-1">{footer}</div> : null}
     </div>
   );
 }

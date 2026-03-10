@@ -5,6 +5,7 @@ import {
   createRoomReservation,
   isGraphConfigured,
 } from "@/lib/graph";
+import { isHoldActive } from "@/lib/room-holds";
 
 const VALID_DURATIONS = [15, 30] as const;
 const MAX_DAYS_AHEAD = 7;
@@ -71,6 +72,12 @@ export async function POST(request: Request, { params }: RouteParams) {
   const room = getRoomBySlug(slug);
   if (!room) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  if (isHoldActive(slug)) {
+    return NextResponse.json(
+      { error: "Room was started early and is temporarily unavailable." },
+      { status: 409 }
+    );
   }
 
   let body: unknown;

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getRoomBySlug } from "@/lib/rooms";
 import { getRoomCalendarView, isGraphConfigured } from "@/lib/graph";
 import type { Meeting } from "@/components/kiosk/types";
+import { isHoldActive } from "@/lib/room-holds";
 
 type RouteParams = { params: Promise<{ slug: string }> };
 
@@ -51,6 +52,9 @@ export async function GET(request: Request, { params }: RouteParams) {
   const room = getRoomBySlug(slug);
   if (!room) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  if (isHoldActive(slug)) {
+    return NextResponse.json({ slots: [], holdActive: true });
   }
 
   const { searchParams } = new URL(request.url);

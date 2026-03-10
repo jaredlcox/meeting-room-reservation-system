@@ -4,6 +4,7 @@ import { getRoomBySlug } from "@/lib/rooms";
 import { getRoomCalendarView, createRoomReservation, isGraphConfigured } from "@/lib/graph";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import type { ReserveRequest, ReserveResponse } from "@/lib/api-types";
+import { isHoldActive } from "@/lib/room-holds";
 
 const VALID_DURATIONS = [15, 30, 45, 60] as const;
 
@@ -67,6 +68,12 @@ export async function POST(request: Request, { params }: RouteParams) {
   const room = getRoomBySlug(slug);
   if (!room) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  if (isHoldActive(slug)) {
+    return NextResponse.json(
+      { error: "Room was started early at the kiosk and is temporarily unavailable." },
+      { status: 409 }
+    );
   }
 
   const session = await getServerSession(authOptions);

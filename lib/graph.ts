@@ -288,6 +288,45 @@ export async function createRoomReservation(
   return { success: true, eventId: data.id };
 }
 
+/**
+ * End an existing room event "now" by updating its end time.
+ */
+export async function endRoomEventNow(
+  roomEmail: string,
+  eventId: string,
+  now: Date
+): Promise<{ success: true }> {
+  if (!isGraphConfigured()) {
+    throw new Error(GRAPH_NOT_CONFIGURED);
+  }
+
+  const token = await getGraphAccessToken();
+  const encodedEmail = encodeURIComponent(roomEmail);
+  const encodedEventId = encodeURIComponent(eventId);
+  const url = `${GRAPH_BASE}/users/${encodedEmail}/events/${encodedEventId}`;
+  const roomTimeZone = process.env.ROOM_TIMEZONE?.trim() || "America/New_York";
+  const body = {
+    end: { dateTime: formatInTimeZone(now, roomTimeZone), timeZone: roomTimeZone },
+  };
+
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    console.error("[graph] endRoomEventNow failed:", res.status, text);
+    throw new Error(`[graph] endRoomEventNow failed: ${res.status}`);
+  }
+
+  return { success: true };
+}
+
 export interface DirectoryUser {
   id: string;
   displayName: string;

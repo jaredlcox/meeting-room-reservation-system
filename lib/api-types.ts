@@ -41,3 +41,15 @@ export interface ReserveResponse {
 export interface ApiErrorResponse {
   error: string;
 }
+
+export interface RoomHold {
+  roomSlug: string;
+  startedAt: string;
+  expiresAt: string;
+  reason: "manual-checkin";
+}
+
+export interface RoomHoldResponse {
+  holdActive: boolean;
+  hold: RoomHold | null;
+}

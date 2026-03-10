@@ -8,7 +8,8 @@ import { QuickBook } from "@/components/kiosk/quick-book";
 import { QRPanel } from "@/components/kiosk/qr-panel";
 import { ScheduleList } from "@/components/kiosk/schedule-list";
 import type { Meeting, RoomStatus } from "@/components/kiosk/types";
-import type { ScheduleResponse } from "@/lib/api-types";
+import type { RoomHoldResponse, ScheduleResponse } from "@/lib/api-types";
+import { Button } from "@/components/ui/button";
 
 interface RoomKioskProps {
   room: Room;
@@ -50,16 +51,28 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
   const [bookingUrl, setBookingUrl] = useState<string | null>(null);
   const [schedule, setSchedule] = useState<Meeting[] | null>(null);
   const [scheduleError, setScheduleError] = useState(false);
+  const [holdActive, setHoldActive] = useState(false);
+  const [holdError, setHoldError] = useState<string | null>(null);
+  const [actionSubmitting, setActionSubmitting] = useState(false);
 
-  const fetchSchedule = useCallback(async () => {
-    const res = await fetch(`/api/rooms/${room.slug}/schedule`);
-    if (!res.ok) {
+  const fetchRoomState = useCallback(async () => {
+    const [scheduleRes, holdRes] = await Promise.all([
+      fetch(`/api/rooms/${room.slug}/schedule`),
+      fetch(`/api/rooms/${room.slug}/hold`),
+    ]);
+
+    if (!scheduleRes.ok) {
       setScheduleError(true);
-      return;
+    } else {
+      setScheduleError(false);
+      const data: ScheduleResponse = await scheduleRes.json();
+      setSchedule(data.meetings);
     }
-    setScheduleError(false);
-    const data: ScheduleResponse = await res.json();
-    setSchedule(data.meetings);
+
+    if (holdRes.ok) {
+      const holdData: RoomHoldResponse = await holdRes.json();
+      setHoldActive(holdData.holdActive);
+    }
   }, [room.slug]);
 
   useEffect(() => {
@@ -69,14 +82,14 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
 
   useEffect(() => {
     if (!mounted) return;
-    fetchSchedule();
-  }, [mounted, fetchSchedule]);
+    fetchRoomState();
+  }, [mounted, fetchRoomState]);
 
   useEffect(() => {
     if (!mounted) return;
-    const id = setInterval(() => fetchSchedule(), 60 * 1000);
+    const id = setInterval(() => fetchRoomState(), 60 * 1000);
     return () => clearInterval(id);
-  }, [mounted, fetchSchedule]);
+  }, [mounted, fetchRoomState]);
 
   useEffect(() => {
     if (!mounted || typeof window === "undefined") return;
@@ -102,10 +115,16 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
     [scheduleForDerive, nowMin]
   );
 
-  const status = now ? getRoomStatus(now, currentMeeting, nextMeeting) : "available";
+  const status = holdActive
+    ? "busy"
+    : now
+      ? getRoomStatus(now, currentMeeting, nextMeeting)
+      : "available";
 
   let statusLabel = "";
-  if (status === "available") {
+  if (holdActive) {
+    statusLabel = "In Use - Started early";
+  } else if (status === "available") {
     statusLabel = nextMeeting
       ? `Available Until ${nextMeeting.startTime}`
       : "Available All Day";
@@ -115,7 +134,11 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
     statusLabel = `In Use Until ${currentMeeting.endTime}`;
   }
 
-  const minutesUntilNext = nextMeeting ? nextMeeting.startMinutes - nowMin : 480;
+  const minutesUntilNext = holdActive
+    ? 0
+    : nextMeeting
+      ? nextMeeting.startMinutes - nowMin
+      : 480;
 
   const BOOK_OPTIONS = [15, 30];
 
@@ -133,6 +156,52 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
         day: "numeric",
       })
     : "Loading...";
+
+  async function handleStartEarly() {
+    setActionSubmitting(true);
+    setHoldError(null);
+    try {
+      const res = await fetch(`/api/rooms/${room.slug}/hold`, { method: "POST" });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        setHoldError(data.error ?? "Could not start room early.");
+      } else {
+        setHoldActive(true);
+      }
+      await fetchRoomState();
+    } catch {
+      setHoldError("Could not start room early.");
+    } finally {
+      setActionSubmitting(false);
+    }
+  }
+
+  async function handleStopEarly() {
+    setActionSubmitting(true);
+    setHoldError(null);
+    try {
+      const hasActiveMeeting = !!currentMeeting;
+      const endpoint = hasActiveMeeting
+        ? `/api/rooms/${room.slug}/end-active`
+        : `/api/rooms/${room.slug}/hold`;
+      const method = hasActiveMeeting ? "POST" : "DELETE";
+      const res = await fetch(endpoint, { method });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        setHoldError(data.error ?? "Could not stop this room.");
+      } else {
+        setHoldActive(false);
+      }
+      await fetchRoomState();
+    } catch {
+      setHoldError("Could not stop this room.");
+    } finally {
+      setActionSubmitting(false);
+    }
+  }
+
+  const disableStart = actionSubmitting || holdActive || !!currentMeeting;
+  const disableStop = actionSubmitting || (!currentMeeting && !holdActive);
 
   return (
     <div className="min-h-screen bg-background font-sans flex flex-col overflow-x-hidden">
@@ -169,6 +238,29 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
                 title="Current Meeting"
                 meeting={currentMeeting}
                 emptyText="No meeting in progress"
+                footer={
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="min-h-[40px] flex-1"
+                      onClick={handleStartEarly}
+                      disabled={disableStart}
+                    >
+                      Start early
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="min-h-[40px] flex-1"
+                      onClick={handleStopEarly}
+                      disabled={disableStop}
+                    >
+                      Stop
+                    </Button>
+                  </div>
+                }
               />
               <MeetingCard
                 title="Up Next"
@@ -176,6 +268,11 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
                 emptyText="No more meetings today"
               />
             </div>
+            {holdError && (
+              <p className="text-sm text-destructive" role="alert">
+                {holdError}
+              </p>
+            )}
 
           </>
         )}
