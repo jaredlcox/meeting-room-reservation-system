@@ -11,6 +11,12 @@ type RouteParams = { params: Promise<{ slug: string }> };
 
 const MAX_DAYS_AHEAD = 7;
 
+function hasOverlappingMeeting(meetings: { startMinutes: number; endMinutes: number }[], start: Date, end: Date): boolean {
+  const startMinutes = start.getHours() * 60 + start.getMinutes();
+  const endMinutes = end.getHours() * 60 + end.getMinutes();
+  return meetings.some((m) => m.startMinutes < endMinutes && m.endMinutes > startMinutes);
+}
+
 function parseBody(body: unknown): ReserveRequest | null {
   if (!body || typeof body !== "object") return null;
   const o = body as Record<string, unknown>;
@@ -107,7 +113,7 @@ export async function POST(request: Request, { params }: RouteParams) {
   if (isGraphConfigured()) {
     try {
       const meetings = await getRoomCalendarView(room.email, start, end);
-      if (meetings.length > 0) {
+      if (hasOverlappingMeeting(meetings, start, end)) {
         return NextResponse.json(
           { error: "Room is not available for that time." },
           { status: 409 }

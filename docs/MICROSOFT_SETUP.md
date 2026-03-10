@@ -60,7 +60,7 @@ This document is a checklist for enabling Microsoft Graph and Entra (Azure AD) a
 - [ ] For Phase 7 sign-in: set `NEXTAUTH_SECRET` (e.g. `openssl rand -base64 32`) and `NEXTAUTH_URL` (e.g. `http://localhost:3000` in dev, or your production URL).
 - [ ] Optional: set `NEXT_PUBLIC_BASE_URL` (or similar) for building redirect URIs.
 - [ ] Optional: set `NEXT_PUBLIC_APP_URL` to your production URL so the kiosk QR code always points to the canonical booking page (e.g. `https://your-domain.com`).
-- [ ] If booked times appear shifted (e.g. 4 hours off), set `ROOM_TIMEZONE` to the room’s IANA timezone (e.g. `America/New_York`). Events will then be created in that timezone so Outlook shows the correct local time.
+- [ ] Optional: set `ROOM_TIMEZONE` to the room’s IANA timezone (e.g. `America/New_York`) if you need a timezone other than the default. Bookings default to Eastern (`America/New_York`) so Outlook shows the same local time selected in the app.
 
 ---
 

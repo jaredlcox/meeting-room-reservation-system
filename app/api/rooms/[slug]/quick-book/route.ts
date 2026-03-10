@@ -9,6 +9,12 @@ import {
 const VALID_DURATIONS = [15, 30] as const;
 const MAX_DAYS_AHEAD = 7;
 
+function hasOverlappingMeeting(meetings: { startMinutes: number; endMinutes: number }[], start: Date, end: Date): boolean {
+  const startMinutes = start.getHours() * 60 + start.getMinutes();
+  const endMinutes = end.getHours() * 60 + end.getMinutes();
+  return meetings.some((m) => m.startMinutes < endMinutes && m.endMinutes > startMinutes);
+}
+
 type RouteParams = { params: Promise<{ slug: string }> };
 
 function parseBody(body: unknown): {
@@ -97,7 +103,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 
   try {
     const meetings = await getRoomCalendarView(room.email, start, end);
-    if (meetings.length > 0) {
+    if (hasOverlappingMeeting(meetings, start, end)) {
       return NextResponse.json(
         { error: "Room is not available for that time." },
         { status: 409 }

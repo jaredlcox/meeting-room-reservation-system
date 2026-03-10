@@ -7,7 +7,7 @@
 import type { Meeting } from "@/components/kiosk/types";
 import type { AvailabilityResponse } from "@/lib/api-types";
 import { getAvailability } from "@/lib/availability";
-import { minutesSinceMidnight, formatTime12h } from "@/lib/time";
+import { minutesSinceMidnight } from "@/lib/time";
 
 const GRAPH_NOT_CONFIGURED = "Microsoft Graph not configured";
 
@@ -100,13 +100,31 @@ interface GraphEvent {
   organizer?: { emailAddress?: { name?: string; address?: string } };
 }
 
+function parseMinutesFromGraphDateTime(dateTime: string): number | null {
+  const m = /T(\d{2}):(\d{2})/.exec(dateTime);
+  if (!m) return null;
+  const hour = parseInt(m[1]!, 10);
+  const minute = parseInt(m[2]!, 10);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return hour * 60 + minute;
+}
+
+function formatMinutes12h(minutes: number): string {
+  const hour24 = Math.floor(minutes / 60) % 24;
+  const minute = minutes % 60;
+  const suffix = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 || 12;
+  return `${hour12}:${String(minute).padStart(2, "0")} ${suffix}`;
+}
+
 function mapGraphEventToMeeting(ev: GraphEvent): Meeting | null {
   const startDateTime = ev.start?.dateTime;
   const endDateTime = ev.end?.dateTime;
   if (!startDateTime || !endDateTime) return null;
 
-  const startDate = new Date(startDateTime);
-  const endDate = new Date(endDateTime);
+  const startMinutes = parseMinutesFromGraphDateTime(startDateTime);
+  const endMinutes = parseMinutesFromGraphDateTime(endDateTime);
+  if (startMinutes === null || endMinutes === null) return null;
 
   const organizer =
     ev.organizer?.emailAddress?.name ||
@@ -117,10 +135,10 @@ function mapGraphEventToMeeting(ev: GraphEvent): Meeting | null {
     id: ev.id ?? crypto.randomUUID(),
     subject: ev.subject ?? "(No title)",
     organizer,
-    startTime: formatTime12h(startDate),
-    endTime: formatTime12h(endDate),
-    startMinutes: minutesSinceMidnight(startDate),
-    endMinutes: minutesSinceMidnight(endDate),
+    startTime: formatMinutes12h(startMinutes),
+    endTime: formatMinutes12h(endMinutes),
+    startMinutes,
+    endMinutes,
   };
 }
 
@@ -147,11 +165,13 @@ export async function getRoomCalendarView(
     const endIso = end.toISOString();
     const encodedEmail = encodeURIComponent(roomEmail);
     const url = `${GRAPH_BASE}/users/${encodedEmail}/calendar/calendarView?startDateTime=${encodeURIComponent(startIso)}&endDateTime=${encodeURIComponent(endIso)}`;
+    const roomTimeZone = process.env.ROOM_TIMEZONE?.trim() || "America/New_York";
 
     const res = await fetch(url, {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        Prefer: `outlook.timezone="${roomTimeZone}"`,
       },
     });
 
@@ -230,16 +250,11 @@ export async function createRoomReservation(
   const encodedEmail = encodeURIComponent(roomEmail);
   const url = `${GRAPH_BASE}/users/${encodedEmail}/calendar/events`;
 
-  const roomTimeZone = process.env.ROOM_TIMEZONE?.trim() || "UTC";
-  const useLocalTime = roomTimeZone !== "UTC";
+  const roomTimeZone = process.env.ROOM_TIMEZONE?.trim() || "America/New_York";
   const body: Record<string, unknown> = {
     subject: subject ?? "Quick booking",
-    start: useLocalTime
-      ? { dateTime: formatInTimeZone(start, roomTimeZone), timeZone: roomTimeZone }
-      : { dateTime: start.toISOString(), timeZone: "UTC" },
-    end: useLocalTime
-      ? { dateTime: formatInTimeZone(end, roomTimeZone), timeZone: roomTimeZone }
-      : { dateTime: end.toISOString(), timeZone: "UTC" },
+    start: { dateTime: formatInTimeZone(start, roomTimeZone), timeZone: roomTimeZone },
+    end: { dateTime: formatInTimeZone(end, roomTimeZone), timeZone: roomTimeZone },
   };
 
   const attendeeEmails = Array.isArray(attendeeEmailsParam) && attendeeEmailsParam.length > 0
