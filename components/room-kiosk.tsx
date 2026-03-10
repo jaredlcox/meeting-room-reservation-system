@@ -77,15 +77,24 @@ function getRoomStatus(
 // ─── Root Component ───────────────────────────────────────────────────────────
 
 export default function RoomKiosk() {
-  const [now, setNow] = useState(new Date());
-  const [lastSynced, setLastSynced] = useState(new Date());
+  const [mounted, setMounted] = useState(false);
+  const [now, setNow] = useState<Date | null>(null);
+  const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [syncing, setSyncing] = useState(false);
+
+  // Initialize on mount to avoid hydration mismatch
+  useEffect(() => {
+    setNow(new Date());
+    setLastSynced(new Date());
+    setMounted(true);
+  }, []);
 
   // Tick clock every second
   useEffect(() => {
+    if (!mounted) return;
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [mounted]);
 
   function handleRefresh() {
     setSyncing(true);
@@ -95,7 +104,12 @@ export default function RoomKiosk() {
     }, 1200);
   }
 
-  const status = getRoomStatus(now, ACTIVE_MEETING, NEXT_MEETING);
+  // Quick-book slots (in minutes)
+  const BOOK_OPTIONS = [15, 30, 45, 60];
+  const nowMin = now ? now.getHours() * 60 + now.getMinutes() : 0;
+  const minutesUntilNext = NEXT_MEETING ? NEXT_MEETING.startMinutes - nowMin : 480;
+
+  const status = now ? getRoomStatus(now, ACTIVE_MEETING, NEXT_MEETING) : "available";
 
   // Determine available-until label
   let statusLabel = "";
@@ -109,22 +123,21 @@ export default function RoomKiosk() {
     statusLabel = `In Use Until ${ACTIVE_MEETING.endTime}`;
   }
 
-  // Quick-book slots (in minutes)
-  const BOOK_OPTIONS = [15, 30, 45, 60];
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const minutesUntilNext = NEXT_MEETING ? NEXT_MEETING.startMinutes - nowMin : 480;
-
-  const formattedTime = now.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-  const formattedDate = now.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  const formattedTime = now
+    ? now.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      })
+    : "--:--:-- --";
+  const formattedDate = now
+    ? now.toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      })
+    : "Loading...";
 
   return (
     <div className="min-h-screen bg-background font-sans flex flex-col">
@@ -143,11 +156,13 @@ export default function RoomKiosk() {
             {formattedTime}
           </p>
           <p className="text-sm text-muted-foreground">{formattedDate}</p>
-          <RefreshIndicator
-            lastSynced={lastSynced}
-            syncing={syncing}
-            onRefresh={handleRefresh}
-          />
+          {lastSynced && (
+            <RefreshIndicator
+              lastSynced={lastSynced}
+              syncing={syncing}
+              onRefresh={handleRefresh}
+            />
+          )}
         </div>
       </header>
 
