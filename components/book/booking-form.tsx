@@ -22,6 +22,12 @@ import { formatTime12h } from "@/lib/time";
 const DURATION_OPTIONS = [15, 30, 45, 60] as const;
 const MAX_DAYS_AHEAD = 7;
 
+const ALLOWED_INVITE_DOMAINS = ["integrityhomeexteriors.com", "ircuwd.com"];
+function isAllowedInviteEmail(mail: string): boolean {
+  const lower = mail.toLowerCase();
+  return ALLOWED_INVITE_DOMAINS.some((d) => lower.endsWith(d));
+}
+
 function toDateString(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -81,7 +87,10 @@ export function BookingForm({ room, session }: BookingFormProps) {
     setAttendeesLoading(true);
     fetch("/api/directory/users")
       .then((res) => (res.ok ? res.json() : { users: [] }))
-      .then((data: { users: DirectoryUser[] }) => setAttendees(data.users ?? []))
+      .then((data: { users: DirectoryUser[] }) => {
+        const all = data.users ?? [];
+        setAttendees(all.filter((u) => u.mail && isAllowedInviteEmail(u.mail)));
+      })
       .catch(() => setAttendees([]))
       .finally(() => setAttendeesLoading(false));
   }, []);

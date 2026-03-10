@@ -18,6 +18,13 @@ interface QuickBookProps {
   minutesUntilNext: number;
 }
 
+const ALLOWED_INVITE_DOMAINS = ["integrityhomeexteriors.com", "ircuwd.com"];
+function isAllowedInviteEmail(mail: string | null): boolean {
+  if (!mail) return false;
+  const lower = mail.toLowerCase();
+  return ALLOWED_INVITE_DOMAINS.some((d) => lower.endsWith(d));
+}
+
 function toDateString(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -63,7 +70,10 @@ export function QuickBook({ roomSlug, options, minutesUntilNext }: QuickBookProp
     setUsersLoading(true);
     fetch("/api/directory/users")
       .then((res) => (res.ok ? res.json() : { users: [] }))
-      .then((data: { users: DirectoryUser[] }) => setUsers(data.users ?? []))
+      .then((data: { users: DirectoryUser[] }) => {
+        const all = data.users ?? [];
+        setUsers(all.filter((u) => isAllowedInviteEmail(u.mail)));
+      })
       .catch(() => setUsers([]))
       .finally(() => setUsersLoading(false));
   }, [step]);
