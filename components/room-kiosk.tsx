@@ -122,16 +122,15 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
 
   const minutesUntilNext = nextMeeting ? nextMeeting.startMinutes - nowMin : 480;
 
-  const BOOK_OPTIONS = [15, 30, 45, 60];
+  const BOOK_OPTIONS = [15, 30];
 
   const formattedTime = now
     ? now.toLocaleTimeString("en-US", {
         hour: "numeric",
         minute: "2-digit",
-        second: "2-digit",
         hour12: true,
       })
-    : "--:--:-- --";
+    : "--:-- --";
   const formattedDate = now
     ? now.toLocaleDateString("en-US", {
         weekday: "long",
@@ -148,9 +147,6 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
           <h1 className="text-xl sm:text-3xl font-bold text-foreground tracking-tight truncate">
             {room.name}
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">
-            {room.email}
-          </p>
         </div>
         <div className="text-right flex flex-col items-end gap-1 shrink-0">
           <p className="text-xl sm:text-3xl font-semibold tabular-nums text-foreground">
@@ -193,13 +189,17 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
               />
             </div>
 
-            <QuickBook options={BOOK_OPTIONS} minutesUntilNext={minutesUntilNext} />
           </>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 min-w-0">
-          <div className="lg:col-span-2 min-w-0">
-            <QRPanel bookingUrl={bookingUrl} />
+          <div className="lg:col-span-2 min-w-0 flex flex-col gap-4">
+            <QRPanel bookingUrl={bookingUrl} roomSlug={room.slug} />
+            <QuickBook
+              roomSlug={room.slug}
+              options={BOOK_OPTIONS}
+              minutesUntilNext={minutesUntilNext}
+            />
           </div>
           <div className="lg:col-span-3 min-w-0">
             <ScheduleList

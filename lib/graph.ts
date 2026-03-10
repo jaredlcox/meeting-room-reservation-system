@@ -195,14 +195,15 @@ export async function getRoomAvailability(
 
 /**
  * Create a reservation (calendar event) for the room.
- * Uses app-only token; adds organizer as attendee when provided.
+ * Uses app-only token; adds attendees when provided (or organizerEmail as single attendee).
  */
 export async function createRoomReservation(
   roomEmail: string,
   start: Date,
   end: Date,
   subject?: string,
-  organizerEmail?: string
+  organizerEmail?: string,
+  attendeeEmailsParam?: string[]
 ): Promise<{ success: true; eventId?: string }> {
   if (!isGraphConfigured()) {
     throw new Error(GRAPH_NOT_CONFIGURED);
@@ -224,13 +225,16 @@ export async function createRoomReservation(
     },
   };
 
-  if (organizerEmail) {
-    body.attendees = [
-      {
-        emailAddress: { address: organizerEmail },
-        type: "required",
-      },
-    ];
+  const attendeeEmails = Array.isArray(attendeeEmailsParam) && attendeeEmailsParam.length > 0
+    ? attendeeEmailsParam.filter((e): e is string => typeof e === "string" && e.length > 0)
+    : organizerEmail
+      ? [organizerEmail]
+      : [];
+  if (attendeeEmails.length > 0) {
+    body.attendees = attendeeEmails.map((address) => ({
+      emailAddress: { address },
+      type: "required" as const,
+    }));
   }
 
   const res = await fetch(url, {
@@ -250,4 +254,48 @@ export async function createRoomReservation(
 
   const data = (await res.json()) as { id?: string };
   return { success: true, eventId: data.id };
+}
+
+export interface DirectoryUser {
+  id: string;
+  displayName: string;
+  mail: string | null;
+}
+
+/**
+ * List users from Microsoft 365 directory (Entra ID).
+ * Requires application permission User.Read.All (or User.ReadBasic.All).
+ */
+export async function getDirectoryUsers(): Promise<DirectoryUser[]> {
+  if (!isGraphConfigured()) {
+    return [];
+  }
+  try {
+    const token = await getGraphAccessToken();
+    const url = `${GRAPH_BASE}/users?$select=id,displayName,mail&$top=500&$orderby=displayName`;
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!res.ok) {
+      console.error("[graph] getDirectoryUsers failed:", res.status, await res.text());
+      return [];
+    }
+    const data = (await res.json()) as { value?: Array<{ id?: string; displayName?: string; mail?: string | null }> };
+    const list = data.value ?? [];
+    return list
+      .filter((u) => u.id && (u.mail || u.displayName))
+      .map((u) => ({
+        id: u.id!,
+        displayName: u.displayName ?? "",
+        mail: u.mail ?? null,
+      }))
+      .filter((u) => u.mail)
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  } catch (err) {
+    console.error("[graph] getDirectoryUsers failed:", err);
+    return [];
+  }
 }
