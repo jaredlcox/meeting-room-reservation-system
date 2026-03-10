@@ -1,0 +1,80 @@
+import type { Meeting } from "./types";
+
+interface MeetingCardProps {
+  title: string;
+  meeting: Meeting | null;
+  emptyText: string;
+}
+
+export function MeetingCard({ title, meeting, emptyText }: MeetingCardProps) {
+  return (
+    <div className="bg-card rounded-2xl border border-border shadow-sm p-5 flex flex-col gap-3">
+      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        {title}
+      </p>
+
+      {meeting ? (
+        <>
+          <h2 className="text-lg font-semibold text-foreground leading-snug text-balance">
+            {meeting.subject}
+          </h2>
+          <div className="mt-auto flex flex-col gap-1.5">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <PersonIcon />
+              <span>{meeting.organizer}</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <ClockIcon />
+              <span>
+                {meeting.startTime} — {meeting.endTime}
+              </span>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="flex-1 flex items-center">
+          <p className="text-base text-muted-foreground italic">{emptyText}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PersonIcon() {
+  return (
+    <svg
+      className="w-4 h-4 shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM6 21v-1a6 6 0 0 1 12 0v1"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg
+      className="w-4 h-4 shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        d="M12 7v5l3 3"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
