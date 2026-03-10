@@ -18,11 +18,11 @@ export function QuickBook({ options, minutesUntilNext }: QuickBookProps) {
   }
 
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-sm p-5">
+    <div className="bg-card rounded-2xl border border-border shadow-sm p-4 sm:p-5 pb-6 sm:pb-5">
       <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
         Quick Book
       </p>
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {options.map((min) => {
           const disabled = min > minutesUntilNext;
           const isBooked = booked === min;

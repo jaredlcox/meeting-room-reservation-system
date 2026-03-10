@@ -8,20 +8,20 @@ interface MeetingCardProps {
 
 export function MeetingCard({ title, meeting, emptyText }: MeetingCardProps) {
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-sm p-5 flex flex-col gap-3">
+    <div className="bg-card rounded-2xl border border-border shadow-sm p-4 sm:p-5 flex flex-col gap-3 min-w-0">
       <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         {title}
       </p>
 
       {meeting ? (
         <>
-          <h2 className="text-lg font-semibold text-foreground leading-snug text-balance">
+          <h2 className="text-base sm:text-lg font-semibold text-foreground leading-snug text-balance break-words truncate">
             {meeting.subject}
           </h2>
-          <div className="mt-auto flex flex-col gap-1.5">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="mt-auto flex flex-col gap-1.5 min-w-0">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
               <PersonIcon />
-              <span>{meeting.organizer}</span>
+              <span className="truncate">{meeting.organizer}</span>
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <ClockIcon />

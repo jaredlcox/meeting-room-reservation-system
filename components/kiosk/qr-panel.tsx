@@ -24,7 +24,7 @@ export function QRPanel({ bookingUrl = null }: QRPanelProps) {
   }, [bookingUrl]);
 
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-sm p-5 flex flex-col items-center gap-4 h-full">
+    <div className="bg-card rounded-2xl border border-border shadow-sm p-4 sm:p-5 flex flex-col items-center gap-4 h-full min-w-0">
       <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground self-start">
         Book from Your Phone
       </p>

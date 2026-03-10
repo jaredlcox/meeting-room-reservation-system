@@ -86,18 +86,18 @@ export function StatusCard({ status, label }: StatusCardProps) {
   return (
     <div
       className={cn(
-        "bg-card rounded-2xl border-2 px-6 py-5 flex items-center gap-5 shadow-sm",
+        "bg-card rounded-2xl border-2 px-4 sm:px-6 py-4 sm:py-5 flex items-center gap-3 sm:gap-5 shadow-sm min-w-0",
         cfg.border
       )}
       role="status"
       aria-label={`Room status: ${cfg.label}`}
     >
       <div className="shrink-0">{cfg.icon}</div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <span
             className={cn(
-              "text-4xl font-bold tracking-tight text-balance",
+              "text-2xl sm:text-4xl font-bold tracking-tight text-balance break-words",
               status === "available"
                 ? "text-[var(--status-available-fg)]"
                 : status === "busy"

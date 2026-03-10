@@ -8,8 +8,8 @@ interface ScheduleListProps {
 
 export function ScheduleList({ meetings, nowMinutes }: ScheduleListProps) {
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-sm p-5 flex flex-col gap-3 h-full">
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+    <div className="bg-card rounded-2xl border border-border shadow-sm p-4 sm:p-5 flex flex-col gap-3 h-full min-w-0 overflow-hidden">
+      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground shrink-0">
         Today's Schedule
       </p>
 
@@ -18,7 +18,7 @@ export function ScheduleList({ meetings, nowMinutes }: ScheduleListProps) {
           No meetings scheduled today
         </p>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 min-w-0">
           {meetings.map((meeting) => {
             const isPast = meeting.endMinutes < nowMinutes;
             const isActive =
@@ -29,7 +29,7 @@ export function ScheduleList({ meetings, nowMinutes }: ScheduleListProps) {
               <div
                 key={meeting.id}
                 className={cn(
-                  "flex items-start gap-3 rounded-xl px-3 py-3 transition-colors",
+                  "flex items-start gap-2 sm:gap-3 rounded-xl px-3 py-3 transition-colors min-w-0",
                   isActive
                     ? "bg-[var(--status-busy-bg)] border border-[var(--status-busy)]/30"
                     : isPast
@@ -39,7 +39,7 @@ export function ScheduleList({ meetings, nowMinutes }: ScheduleListProps) {
                 aria-current={isActive ? "true" : undefined}
               >
                 {/* Time column */}
-                <div className="shrink-0 w-24 text-right">
+                <div className="shrink-0 w-20 sm:w-24 text-right">
                   <span
                     className={cn(
                       "text-xs font-medium tabular-nums",

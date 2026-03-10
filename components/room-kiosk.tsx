@@ -141,22 +141,22 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
     : "Loading...";
 
   return (
-    <div className="min-h-screen bg-background font-sans flex flex-col">
+    <div className="min-h-screen bg-background font-sans flex flex-col overflow-x-hidden">
       {/* ── Header ── */}
-      <header className="flex items-start justify-between px-6 pt-6 pb-4">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground tracking-tight">
+      <header className="flex flex-wrap items-start justify-between gap-3 px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl sm:text-3xl font-bold text-foreground tracking-tight truncate">
             {room.name}
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">
             {room.email}
           </p>
         </div>
-        <div className="text-right flex flex-col items-end gap-1">
-          <p className="text-3xl font-semibold tabular-nums text-foreground">
+        <div className="text-right flex flex-col items-end gap-1 shrink-0">
+          <p className="text-xl sm:text-3xl font-semibold tabular-nums text-foreground">
             {formattedTime}
           </p>
-          <p className="text-sm text-muted-foreground">{formattedDate}</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">{formattedDate}</p>
           {lastSynced && (
             <RefreshIndicator
               lastSynced={lastSynced}
@@ -168,7 +168,7 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
       </header>
 
       {/* ── Body ── */}
-      <main className="flex-1 px-6 pb-4 flex flex-col gap-4 overflow-y-auto">
+      <main className="flex-1 px-4 sm:px-6 pb-6 sm:pb-4 flex flex-col gap-4 overflow-y-auto overflow-x-hidden min-w-0">
         {scheduleError && (
           <p className="text-sm text-destructive" role="alert">
             Could not load schedule. Try refreshing.
@@ -180,7 +180,7 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
           <>
             <StatusCard status={status} label={statusLabel} />
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <MeetingCard
                 title="Current Meeting"
                 meeting={currentMeeting}
@@ -197,11 +197,11 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
           </>
         )}
 
-        <div className="grid grid-cols-5 gap-4">
-          <div className="col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 min-w-0">
+          <div className="lg:col-span-2 min-w-0">
             <QRPanel bookingUrl={bookingUrl} />
           </div>
-          <div className="col-span-3">
+          <div className="lg:col-span-3 min-w-0">
             <ScheduleList
               meetings={schedule ?? []}
               nowMinutes={nowMin}
@@ -211,11 +211,11 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
       </main>
 
       {/* ── Footer ── */}
-      <footer className="px-6 py-3 border-t border-border flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">
+      <footer className="px-4 sm:px-6 py-3 border-t border-border flex flex-wrap items-center justify-between gap-2 min-w-0">
+        <p className="text-xs text-muted-foreground truncate min-w-0">
           Synced with Microsoft 365
         </p>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground shrink-0">
           Floor 3 · Building A
         </p>
       </footer>
