@@ -27,6 +27,8 @@ This document is a checklist for enabling Microsoft Graph and Entra (Azure AD) a
   - `Calendars.Read` (or `Calendars.ReadWrite` if the same app will also create events).
 - [ ] For **booking (create events):** add:
   - `Calendars.ReadWrite` (application permission to write to room calendars, or delegated if the signed-in user is allowed to book the room).
+- [ ] For **Quick Book participant list** (kiosk): add **Application** permission:
+  - `User.Read.All` (or `User.ReadBasic.All`) so the app can list directory users for the participant picker. Grant admin consent.
 - [ ] For room resource mailboxes, ensure the app has access (admin consent for application permissions, or delegated with a user who has access to the room).
 - [ ] Grant **admin consent** if using application permissions.
 - [ ] Reference: [Microsoft Graph calendar permissions](https://learn.microsoft.com/en-us/graph/permissions-reference#calendar-permissions), [access room mailboxes](https://learn.microsoft.com/en-us/graph/room-list).
