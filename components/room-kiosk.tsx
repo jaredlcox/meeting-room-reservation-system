@@ -79,7 +79,12 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setBookingUrl(`${window.location.origin}${room.bookingPath}`);
+      const base =
+        typeof process.env.NEXT_PUBLIC_APP_URL === "string" &&
+        process.env.NEXT_PUBLIC_APP_URL.length > 0
+          ? process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")
+          : window.location.origin;
+      setBookingUrl(`${base}${room.bookingPath}`);
     }
   }, [room.bookingPath]);
 

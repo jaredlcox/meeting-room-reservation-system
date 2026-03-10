@@ -9,6 +9,8 @@ const VALID_DURATIONS = [15, 30, 45, 60] as const;
 
 type RouteParams = { params: Promise<{ slug: string }> };
 
+const MAX_DAYS_AHEAD = 7;
+
 function parseBody(body: unknown): ReserveRequest | null {
   if (!body || typeof body !== "object") return null;
   const o = body as Record<string, unknown>;
@@ -25,7 +27,30 @@ function parseBody(body: unknown): ReserveRequest | null {
       : typeof o.title === "string"
         ? o.title
         : undefined;
-  return { durationMinutes: durationMinutes as number, title };
+  const startTime =
+    o.startTime === undefined || o.startTime === null
+      ? undefined
+      : typeof o.startTime === "string"
+        ? o.startTime.trim() || undefined
+        : undefined;
+  return { durationMinutes: durationMinutes as number, title, startTime };
+}
+
+function parseAndValidateStartTime(startTime: string): { start: Date } | { error: string } {
+  const start = new Date(startTime);
+  if (Number.isNaN(start.getTime())) {
+    return { error: "Invalid startTime" };
+  }
+  const now = new Date();
+  if (start.getTime() < now.getTime()) {
+    return { error: "startTime must be in the future" };
+  }
+  const maxDate = new Date(now);
+  maxDate.setDate(maxDate.getDate() + MAX_DAYS_AHEAD);
+  if (start.getTime() > maxDate.getTime()) {
+    return { error: `startTime must be within the next ${MAX_DAYS_AHEAD} days` };
+  }
+  return { start };
 }
 
 export async function POST(request: Request, { params }: RouteParams) {
@@ -60,9 +85,20 @@ export async function POST(request: Request, { params }: RouteParams) {
     );
   }
 
-  const now = new Date();
-  const start = new Date(now);
-  const end = new Date(now.getTime() + parsed.durationMinutes * 60 * 1000);
+  let start: Date;
+  let end: Date;
+  if (parsed.startTime) {
+    const validated = parseAndValidateStartTime(parsed.startTime);
+    if ("error" in validated) {
+      return NextResponse.json({ error: validated.error }, { status: 400 });
+    }
+    start = validated.start;
+    end = new Date(start.getTime() + parsed.durationMinutes * 60 * 1000);
+  } else {
+    const now = new Date();
+    start = new Date(now);
+    end = new Date(now.getTime() + parsed.durationMinutes * 60 * 1000);
+  }
 
   let eventId: string | undefined;
   if (isGraphConfigured()) {

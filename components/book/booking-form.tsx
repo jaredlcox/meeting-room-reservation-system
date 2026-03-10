@@ -1,16 +1,51 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { signIn, signOut } from "next-auth/react";
 import type { Session } from "next-auth";
 import type { Room } from "@/lib/rooms";
+import type { TimeSlot, SlotsResponse } from "@/lib/api-types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { formatTime12h } from "@/lib/time";
 
 const DURATION_OPTIONS = [15, 30, 45, 60] as const;
+const MAX_DAYS_AHEAD = 7;
+
+function toDateString(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function isToday(date: Date): boolean {
+  const today = new Date();
+  return (
+    date.getDate() === today.getDate() &&
+    date.getMonth() === today.getMonth() &&
+    date.getFullYear() === today.getFullYear()
+  );
+}
+
+function isTomorrow(date: Date): boolean {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return (
+    date.getDate() === tomorrow.getDate() &&
+    date.getMonth() === tomorrow.getMonth() &&
+    date.getFullYear() === tomorrow.getFullYear()
+  );
+}
+
+function formatDateLabel(date: Date): string {
+  if (isToday(date)) return "Today";
+  if (isTomorrow(date)) return "Tomorrow";
+  return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
 
 type SubmitStatus = "idle" | "submitting" | "success" | "error" | "conflict" | "unauthorized";
 
@@ -20,20 +55,71 @@ interface BookingFormProps {
 }
 
 export function BookingForm({ room, session }: BookingFormProps) {
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
+  const [slots, setSlots] = useState<TimeSlot[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(true);
+  const [slotsError, setSlotsError] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [durationMinutes, setDurationMinutes] = useState<number>(30);
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState<SubmitStatus>("idle");
 
+  const dateStr = useMemo(() => toDateString(selectedDate), [selectedDate]);
+
+  useEffect(() => {
+    setSlotsLoading(true);
+    setSlotsError(false);
+    setSelectedSlot(null);
+    fetch(`/api/rooms/${room.slug}/slots?date=${dateStr}`)
+      .then((res) => {
+        if (!res.ok) {
+          setSlotsError(true);
+          setSlots([]);
+          return;
+        }
+        return res.json() as Promise<SlotsResponse>;
+      })
+      .then((data) => {
+        if (data?.slots) setSlots(data.slots);
+        else setSlots([]);
+      })
+      .catch(() => {
+        setSlotsError(true);
+        setSlots([]);
+      })
+      .finally(() => setSlotsLoading(false));
+  }, [room.slug, dateStr]);
+
+  const now = useMemo(() => new Date(), []);
+  const selectableSlots = useMemo(() => {
+    if (!isToday(selectedDate)) return slots;
+    return slots.filter((s) => new Date(s.start) > now);
+  }, [slots, selectedDate, now]);
+
+  const dateOptions = useMemo(() => {
+    const options: Date[] = [];
+    const base = new Date();
+    for (let i = 0; i < MAX_DAYS_AHEAD; i++) {
+      const d = new Date(base);
+      d.setDate(d.getDate() + i);
+      options.push(d);
+    }
+    return options;
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!selectedSlot) return;
     setStatus("submitting");
+    const body: { durationMinutes: number; title?: string; startTime: string } = {
+      durationMinutes,
+      startTime: selectedSlot.start,
+    };
+    if (title.trim()) body.title = title.trim();
     const res = await fetch(`/api/rooms/${room.slug}/reserve`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        durationMinutes,
-        title: title.trim() || undefined,
-      }),
+      body: JSON.stringify(body),
     });
     if (res.ok) {
       setStatus("success");
@@ -41,6 +127,8 @@ export function BookingForm({ room, session }: BookingFormProps) {
       setStatus("unauthorized");
     } else if (res.status === 409) {
       setStatus("conflict");
+    } else if (res.status === 400) {
+      setStatus("error");
     } else {
       setStatus("error");
     }
@@ -123,8 +211,7 @@ export function BookingForm({ room, session }: BookingFormProps) {
         </header>
 
         <p className="text-sm text-muted-foreground mb-6">
-          Check the display outside the room for live availability, or book now
-          to reserve.
+          Choose a date and time slot, then duration and optional title.
         </p>
 
         {status === "unauthorized" && (
@@ -140,7 +227,7 @@ export function BookingForm({ room, session }: BookingFormProps) {
             className="mb-6 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
             role="alert"
           >
-            Room is not available for that time. Please choose a shorter duration or try again later.
+            Room is not available for that time. Please choose a different slot or try again later.
           </div>
         )}
         {status === "error" && (
@@ -153,6 +240,65 @@ export function BookingForm({ room, session }: BookingFormProps) {
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+          <div role="group" aria-labelledby="date-label">
+            <Label id="date-label" className="text-base">
+              Date
+            </Label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {dateOptions.map((d) => (
+                <Button
+                  key={d.getTime()}
+                  type="button"
+                  variant={
+                    toDateString(d) === toDateString(selectedDate) ? "default" : "outline"
+                  }
+                  size="sm"
+                  className="min-h-[40px]"
+                  onClick={() => setSelectedDate(d)}
+                  disabled={status === "submitting"}
+                >
+                  {formatDateLabel(d)}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div role="group" aria-labelledby="time-label">
+            <Label id="time-label" className="text-base">
+              Start time
+            </Label>
+            {slotsLoading ? (
+              <p className="mt-2 text-sm text-muted-foreground flex items-center gap-2">
+                <Spinner className="size-4" />
+                Loading available slots…
+              </p>
+            ) : slotsError ? (
+              <p className="mt-2 text-sm text-destructive">
+                Could not load slots. Try another date or refresh.
+              </p>
+            ) : selectableSlots.length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                No available slots this day. Try another date.
+              </p>
+            ) : (
+              <div className="mt-2 grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {selectableSlots.map((slot) => (
+                  <Button
+                    key={slot.start}
+                    type="button"
+                    variant={selectedSlot?.start === slot.start ? "default" : "outline"}
+                    size="lg"
+                    className="min-h-[44px]"
+                    onClick={() => setSelectedSlot(slot)}
+                    disabled={status === "submitting"}
+                  >
+                    {formatTime12h(new Date(slot.start))}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div role="group" aria-labelledby="duration-label">
             <Label id="duration-label" className="text-base">
               Duration
@@ -189,11 +335,18 @@ export function BookingForm({ room, session }: BookingFormProps) {
             />
           </div>
 
+          {selectedSlot && (
+            <p className="text-sm text-muted-foreground">
+              Starting at {formatTime12h(new Date(selectedSlot.start))} for {durationMinutes}{" "}
+              minutes
+            </p>
+          )}
+
           <Button
             type="submit"
             size="lg"
             className="min-h-[48px] w-full"
-            disabled={status === "submitting"}
+            disabled={status === "submitting" || !selectedSlot || slotsLoading}
           >
             {status === "submitting" ? (
               <>

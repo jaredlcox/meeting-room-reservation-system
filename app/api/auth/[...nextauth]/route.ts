@@ -10,6 +10,14 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
+    redirect({ url, baseUrl }) {
+      if (url === baseUrl || url === baseUrl + "/") {
+        return `${baseUrl}/book/canvass`;
+      }
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
+    },
     jwt({ token, user }) {
       if (user?.email) token.email = user.email;
       if (user?.name) token.name = user.name;

@@ -16,6 +16,19 @@ export interface AvailabilityResponse {
 export interface ReserveRequest {
   durationMinutes: number;
   title?: string;
+  /** ISO date-time for start of reservation; if omitted, start is "now" */
+  startTime?: string;
+}
+
+export interface TimeSlot {
+  start: string;
+  end: string;
+  startMinutes: number;
+  endMinutes: number;
+}
+
+export interface SlotsResponse {
+  slots: TimeSlot[];
 }
 
 export interface ReserveResponse {

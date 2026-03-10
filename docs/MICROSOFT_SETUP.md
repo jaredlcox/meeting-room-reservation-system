@@ -34,9 +34,15 @@ This document is a checklist for enabling Microsoft Graph and Entra (Azure AD) a
 ### 3. Redirect URIs (Phase 7 NextAuth)
 
 - [ ] In the app registration, go to **Authentication** → **Platform configurations** → **Web** (or SPA if applicable).
-- [ ] Add **Redirect URIs** that match your app exactly. For Phase 7 sign-in, include the NextAuth callback URL (e.g. `https://your-domain.com/api/auth/callback`, or `http://localhost:3000/api/auth/callback` for local dev). Trailing slash and protocol must match.
+- [ ] Add **Redirect URIs** that match your app exactly. For Phase 7 sign-in, include the NextAuth callback URL: `https://your-domain.com/api/auth/callback/azure-ad` (production), or `http://localhost:3000/api/auth/callback/azure-ad` for local dev if your tenant allows HTTP.
+- [ ] **Azure often allows only HTTPS redirect URIs.** If you cannot add `http://192.168.x.x:3000/...` (e.g. when testing from your phone on the same Wi‑Fi), use an **HTTPS tunnel** so you have an HTTPS URL to register:
+  1. Run a tunnel to your dev server (e.g. [ngrok](https://ngrok.com): `ngrok http 3000`). You get a URL like `https://abc123.ngrok-free.app`.
+  2. In Azure, add redirect URI: `https://abc123.ngrok-free.app/api/auth/callback/azure-ad`.
+  3. In `.env.local` set `NEXTAUTH_URL=https://abc123.ngrok-free.app` (no trailing slash). Restart the dev server.
+  4. Open the app on your phone (or kiosk) via the ngrok URL. Sign-in will redirect through Azure and back to the HTTPS callback.
+  - Free ngrok URLs change each time you restart ngrok; update both Azure and `NEXTAUTH_URL` when that happens. A fixed ngrok domain or a deployed app avoids that.
 - [ ] Optional: set **Front-channel logout URL** if you implement logout.
-- [ ] Do not guess tenant-specific domains; use your actual deployment URL and localhost for development.
+- [ ] Do not guess tenant-specific domains; use your actual deployment URL and localhost (or tunnel URL) for development.
 
 ### 4. Room mailbox assumptions
 
@@ -51,6 +57,7 @@ This document is a checklist for enabling Microsoft Graph and Entra (Azure AD) a
 - [ ] Set `MICROSOFT_GRAPH_ENABLED=true` when you are ready to use Graph (Phase 6/7).
 - [ ] For Phase 7 sign-in: set `NEXTAUTH_SECRET` (e.g. `openssl rand -base64 32`) and `NEXTAUTH_URL` (e.g. `http://localhost:3000` in dev, or your production URL).
 - [ ] Optional: set `NEXT_PUBLIC_BASE_URL` (or similar) for building redirect URIs.
+- [ ] Optional: set `NEXT_PUBLIC_APP_URL` to your production URL so the kiosk QR code always points to the canonical booking page (e.g. `https://your-domain.com`).
 
 ---
 
