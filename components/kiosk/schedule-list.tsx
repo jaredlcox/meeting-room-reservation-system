@@ -32,17 +32,17 @@ export function ScheduleList({ meetings, nowMinutes }: ScheduleListProps) {
 
   return (
     <>
-      <div className="bg-card rounded-2xl border border-border shadow-sm p-4 sm:p-5 flex flex-col gap-3 h-full min-w-0 overflow-hidden">
+      <div className="bg-card rounded-2xl border border-border shadow-sm p-4 sm:p-5 flex flex-col gap-3 flex-1 min-h-0 min-w-0 overflow-hidden">
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground shrink-0">
           Today&apos;s Schedule
         </p>
 
         {activeOrUpcomingMeetings.length === 0 ? (
-          <p className="text-sm text-muted-foreground italic">
+          <p className="text-sm text-muted-foreground italic shrink-0">
             No active or upcoming meetings
           </p>
         ) : (
-          <div className="flex flex-col gap-2 min-w-0">
+          <div className="flex flex-col gap-2 min-h-0 min-w-0 overflow-y-auto flex-1">
             {activeOrUpcomingMeetings.map((meeting) => {
               const isActive =
                 meeting.startMinutes <= nowMinutes &&
