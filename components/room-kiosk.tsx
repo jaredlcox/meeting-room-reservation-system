@@ -214,7 +214,7 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
   const disableStop = actionSubmitting || !displayCurrentMeeting;
 
   return (
-    <div className="min-h-screen bg-background font-sans flex flex-col overflow-x-hidden">
+    <div className="kiosk-viewport bg-background font-sans flex flex-col overflow-hidden">
       {/* ── Header ── */}
       <header className="flex flex-wrap items-start justify-between gap-3 px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4">
         <div className="min-w-0 flex-1">
@@ -231,7 +231,7 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
       </header>
 
       {/* ── Body ── */}
-      <main className="flex-1 px-4 sm:px-6 pb-6 sm:pb-4 flex flex-col gap-4 overflow-y-auto overflow-x-hidden min-w-0">
+      <main className="flex-1 min-h-0 px-4 sm:px-6 pb-6 sm:pb-4 flex flex-col gap-4 overflow-hidden min-w-0">
         {scheduleError && (
           <p className="text-sm text-destructive" role="alert">
             Could not load schedule. Try refreshing.

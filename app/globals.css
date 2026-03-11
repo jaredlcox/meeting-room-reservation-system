@@ -127,3 +127,12 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Kiosk: use small viewport height so iPad toolbar doesn't allow scroll */
+@layer utilities {
+  .kiosk-viewport {
+    height: 100vh;
+    height: 100svh;
+    min-height: 0;
+  }
+}
