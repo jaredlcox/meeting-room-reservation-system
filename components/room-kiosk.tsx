@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Room } from "@/lib/rooms";
 import { StatusCard } from "@/components/kiosk/status-card";
 import { MeetingCard } from "@/components/kiosk/meeting-card";
@@ -59,26 +59,32 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
   const [holdError, setHoldError] = useState<string | null>(null);
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [selectedMeetingForDetail, setSelectedMeetingForDetail] = useState<Meeting | null>(null);
+  const hadCurrentMeetingRef = useRef(false);
+  /** Only treat hold as "started early" when the user clicked Start early in this session; ignore stale hold from server. */
+  const userStartedEarlyThisSessionRef = useRef(false);
 
-  const fetchRoomState = useCallback(async () => {
-    const [scheduleRes, holdRes] = await Promise.all([
-      fetch(`/api/rooms/${room.slug}/schedule`),
-      fetch(`/api/rooms/${room.slug}/hold`),
-    ]);
+  const fetchRoomState = useCallback(
+    async (options?: { skipHoldUpdate?: boolean }) => {
+      const [scheduleRes, holdRes] = await Promise.all([
+        fetch(`/api/rooms/${room.slug}/schedule`),
+        fetch(`/api/rooms/${room.slug}/hold`),
+      ]);
 
-    if (!scheduleRes.ok) {
-      setScheduleError(true);
-    } else {
-      setScheduleError(false);
-      const data: ScheduleResponse = await scheduleRes.json();
-      setSchedule(data.meetings);
-    }
+      if (!scheduleRes.ok) {
+        setScheduleError(true);
+      } else {
+        setScheduleError(false);
+        const data: ScheduleResponse = await scheduleRes.json();
+        setSchedule(data.meetings);
+      }
 
-    if (holdRes.ok) {
-      const holdData: RoomHoldResponse = await holdRes.json();
-      setHoldActive(holdData.holdActive);
-    }
-  }, [room.slug]);
+      if (!options?.skipHoldUpdate && holdRes.ok) {
+        const holdData: RoomHoldResponse = await holdRes.json();
+        setHoldActive(holdData.holdActive);
+      }
+    },
+    [room.slug]
+  );
 
   useEffect(() => {
     setNow(new Date());
@@ -120,7 +126,53 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
     [scheduleForDerive, nowMin]
   );
 
-  // If we have a "started early" hold but the schedule shows no current/next meeting (e.g. meeting was ended elsewhere or after 409), clear the hold so the status matches the schedule.
+  // Clear stale hold from server: if we have holdActive but the user didn't click "Start early" in this session, clear it so the next meeting doesn't show as current.
+  useEffect(() => {
+    if (!mounted || !holdActive || schedule === null || userStartedEarlyThisSessionRef.current) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/rooms/${room.slug}/hold`, { method: "DELETE" });
+        if (res.ok && !cancelled) {
+          setHoldActive(false);
+          userStartedEarlyThisSessionRef.current = false;
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mounted, holdActive, schedule, room.slug]);
+
+  // When a meeting that was in progress by time ends (e.g. quick book), clear the hold so the next meeting doesn't jump to "Current" with "In Use - Started early" without the user clicking "Start early".
+  useEffect(() => {
+    if (!mounted || schedule === null) return;
+    const hadCurrent = hadCurrentMeetingRef.current;
+    const hasCurrent = currentMeeting !== null;
+    if (holdActive && hadCurrent && !hasCurrent) {
+      let cancelled = false;
+      (async () => {
+        try {
+          const res = await fetch(`/api/rooms/${room.slug}/hold`, { method: "DELETE" });
+          if (res.ok && !cancelled) {
+            setHoldActive(false);
+            userStartedEarlyThisSessionRef.current = false;
+          }
+        } catch {
+          // ignore
+        }
+      })();
+      hadCurrentMeetingRef.current = false;
+      return () => {
+        cancelled = true;
+      };
+    }
+    hadCurrentMeetingRef.current = hasCurrent;
+  }, [mounted, holdActive, currentMeeting, schedule, room.slug]);
+
+  // Clear a stale "started early" hold only when there is no current AND no next meeting (e.g. after refresh with empty schedule). Do not clear when nextMeeting is set—that is the valid "started early for next" state; clearing would cause flicker when user clicks "Start early".
   useEffect(() => {
     if (
       !mounted ||
@@ -136,7 +188,10 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
     (async () => {
       try {
         const res = await fetch(`/api/rooms/${room.slug}/hold`, { method: "DELETE" });
-        if (res.ok && !cancelled) setHoldActive(false);
+        if (res.ok && !cancelled) {
+          setHoldActive(false);
+          userStartedEarlyThisSessionRef.current = false;
+        }
       } catch {
         // ignore
       }
@@ -147,7 +202,11 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
   }, [mounted, holdActive, schedule, scheduleError, currentMeeting, nextMeeting, room.slug]);
 
   const { displayCurrentMeeting, displayNextMeeting } = useMemo(() => {
-    if (holdActive && nextMeeting) {
+    // If there's a meeting in progress by time (e.g. quick book), show it as current and next as up next—even if we have a "started early" hold. Only show next as current when the user actually clicked "Start early" this session (ignore stale hold from server).
+    if (currentMeeting) {
+      return { displayCurrentMeeting: currentMeeting, displayNextMeeting: nextMeeting };
+    }
+    if (holdActive && nextMeeting && userStartedEarlyThisSessionRef.current) {
       const meetingAfterNext = scheduleForDerive.find(
         (m) => m.startMinutes > nextMeeting.startMinutes
       ) ?? null;
@@ -156,15 +215,18 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
     return { displayCurrentMeeting: currentMeeting, displayNextMeeting: nextMeeting };
   }, [holdActive, currentMeeting, nextMeeting, scheduleForDerive]);
 
-  const status = holdActive
+  const startedEarlyThisSession = userStartedEarlyThisSessionRef.current;
+  const status = holdActive && startedEarlyThisSession
     ? "busy"
     : now
       ? getRoomStatus(now, currentMeeting, nextMeeting)
       : "available";
 
   let statusLabel = "";
-  if (holdActive) {
+  if (holdActive && startedEarlyThisSession && !currentMeeting) {
     statusLabel = "In Use - Started early";
+  } else if (holdActive && startedEarlyThisSession && currentMeeting) {
+    statusLabel = `In Use Until ${currentMeeting.endTime}`;
   } else if (status === "available") {
     statusLabel = nextMeeting
       ? `Available Until ${nextMeeting.startTime}`
@@ -173,7 +235,7 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
     statusLabel = `In Use Until ${currentMeeting.endTime}`;
   }
 
-  const minutesUntilNext = holdActive
+  const minutesUntilNext = holdActive && startedEarlyThisSession
     ? 0
     : nextMeeting
       ? nextMeeting.startMinutes - nowMin
@@ -205,6 +267,7 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
         const data = (await res.json()) as { error?: string };
         setHoldError(data.error ?? "Could not start room early.");
       } else {
+        userStartedEarlyThisSessionRef.current = true;
         setHoldActive(true);
       }
       await fetchRoomState();
@@ -244,12 +307,15 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
           } catch {
             // ignore
           }
+          userStartedEarlyThisSessionRef.current = false;
           setHoldActive(false);
         }
       } else {
+        userStartedEarlyThisSessionRef.current = false;
         setHoldActive(false);
       }
-      await fetchRoomState();
+      // Refresh schedule but don't overwrite holdActive with server response—we just cleared it
+      await fetchRoomState({ skipHoldUpdate: true });
     } catch {
       setHoldError("Could not stop this room.");
     } finally {
@@ -257,7 +323,7 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
     }
   }
 
-  const disableStart = actionSubmitting || holdActive || !!currentMeeting || !nextMeeting;
+  const disableStart = actionSubmitting || (holdActive && startedEarlyThisSession) || !!currentMeeting || !nextMeeting;
   const disableStop = actionSubmitting || !displayCurrentMeeting;
 
   return (

@@ -181,27 +181,33 @@ export async function getRoomCalendarView(
     const startIso = start.toISOString();
     const endIso = end.toISOString();
     const encodedEmail = encodeURIComponent(roomEmail);
-    const url = `${GRAPH_BASE}/users/${encodedEmail}/calendar/calendarView?startDateTime=${encodeURIComponent(startIso)}&endDateTime=${encodeURIComponent(endIso)}`;
     const roomTimeZone = process.env.ROOM_TIMEZONE?.trim() || "America/New_York";
+    const headers: HeadersInit = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Prefer: `outlook.timezone="${roomTimeZone}"`,
+    };
 
-    const res = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Prefer: `outlook.timezone="${roomTimeZone}"`,
-      },
-    });
+    let url: string | null = `${GRAPH_BASE}/users/${encodedEmail}/calendar/calendarView?startDateTime=${encodeURIComponent(startIso)}&endDateTime=${encodeURIComponent(endIso)}`;
+    const allEvents: GraphEvent[] = [];
 
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("[graph] getRoomCalendarView failed:", res.status, text);
-      return [];
+    while (url) {
+      const res = await fetch(url, { headers });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("[graph] getRoomCalendarView failed:", res.status, text);
+        return [];
+      }
+
+      const data = (await res.json()) as { value?: GraphEvent[]; "@odata.nextLink"?: string };
+      const page = data.value ?? [];
+      allEvents.push(...page);
+      url = data["@odata.nextLink"] ?? null;
     }
 
-    const data = (await res.json()) as { value?: GraphEvent[] };
-    const events = data.value ?? [];
     const meetings: Meeting[] = [];
-    for (const ev of events) {
+    for (const ev of allEvents) {
       const m = mapGraphEventToMeeting(ev);
       if (m) meetings.push(m);
     }
