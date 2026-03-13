@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { signIn, signOut } from "next-auth/react";
-import type { Session } from "next-auth";
 import type { Room } from "@/lib/rooms";
 import type { TimeSlot, SlotsResponse } from "@/lib/api-types";
+import { apiUrl } from "@/lib/api-url";
+import { useLaravelAuth } from "@/contexts/laravel-auth";
 
 /** Slots are 15-min blocks. Returns contiguous minutes available from each slot's start. */
 function getContiguousMinutesBySlot(slots: TimeSlot[]): Map<string, number> {
@@ -82,10 +82,16 @@ type SubmitStatus = "idle" | "submitting" | "success" | "error" | "conflict" | "
 
 interface BookingFormProps {
   room: Room;
-  session: Session | null;
 }
 
-export function BookingForm({ room, session }: BookingFormProps) {
+export function BookingForm({ room }: BookingFormProps) {
+  const laravelAuth = useLaravelAuth();
+  const effectiveUser = laravelAuth?.user
+    ? { email: laravelAuth.user.email, name: laravelAuth.user.name ?? undefined }
+    : null;
+  const signInAction = laravelAuth?.signIn;
+  const signOutAction = laravelAuth?.signOut;
+  const authHeaders = laravelAuth?.getAuthHeaders() ?? {};
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   const [slotsByDate, setSlotsByDate] = useState<Record<string, TimeSlot[]>>({});
   const [slotsLoading, setSlotsLoading] = useState(true);
@@ -103,7 +109,7 @@ export function BookingForm({ room, session }: BookingFormProps) {
   const dateStr = useMemo(() => toDateString(selectedDate), [selectedDate]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || session) return;
+    if (typeof window === "undefined" || effectiveUser) return;
     const canonical = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
     if (!canonical) return;
     try {
@@ -114,21 +120,21 @@ export function BookingForm({ room, session }: BookingFormProps) {
     } catch {
       // ignore invalid URL
     }
-  }, [session]);
+  }, [effectiveUser]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !session) return;
+    if (typeof window === "undefined" || !effectiveUser) return;
     const returnTo = sessionStorage.getItem("booking_return");
     const pathname = window.location.pathname;
     if (returnTo?.startsWith("/book/") && returnTo !== pathname) {
       sessionStorage.removeItem("booking_return");
       window.location.replace(returnTo);
     }
-  }, [session]);
+  }, [effectiveUser]);
 
   useEffect(() => {
     setAttendeesLoading(true);
-    fetch("/api/directory/users")
+    fetch(apiUrl("/api/directory/users"))
       .then((res) => (res.ok ? res.json() : { users: [] }))
       .then((data: { users: DirectoryUser[] }) => {
         const all = data.users ?? [];
@@ -139,7 +145,7 @@ export function BookingForm({ room, session }: BookingFormProps) {
   }, []);
 
   useEffect(() => {
-    if (!session) return;
+    if (!effectiveUser) return;
     setSlotsLoading(true);
     setSlotsError(false);
     const base = new Date();
@@ -151,7 +157,7 @@ export function BookingForm({ room, session }: BookingFormProps) {
     }
     Promise.all(
       dateStrings.map((dateStr) =>
-        fetch(`/api/rooms/${room.slug}/slots?date=${dateStr}`)
+        fetch(apiUrl(`/api/rooms/${room.slug}/slots?date=${dateStr}`))
           .then((res) => (res.ok ? (res.json() as Promise<SlotsResponse>) : { slots: [] }))
           .then((data) => ({ dateStr, slots: data?.slots ?? [] }))
           .catch(() => ({ dateStr, slots: [] }))
@@ -167,7 +173,7 @@ export function BookingForm({ room, session }: BookingFormProps) {
       })
       .catch(() => setSlotsError(true))
       .finally(() => setSlotsLoading(false));
-  }, [session, room.slug]);
+  }, [effectiveUser, room.slug]);
 
   const slots = useMemo(
     () => slotsByDate[dateStr] ?? [],
@@ -236,9 +242,9 @@ export function BookingForm({ room, session }: BookingFormProps) {
     };
     if (title.trim()) body.title = title.trim();
     if (selectedAttendeeEmails.size > 0) body.attendeeEmails = Array.from(selectedAttendeeEmails);
-    const res = await fetch(`/api/rooms/${room.slug}/reserve`, {
+    const res = await fetch(apiUrl(`/api/rooms/${room.slug}/reserve`), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify(body),
     });
     if (res.ok) {
@@ -254,7 +260,15 @@ export function BookingForm({ room, session }: BookingFormProps) {
     }
   }
 
-  if (!session) {
+  if (laravelAuth?.loading) {
+    return (
+      <div className="min-h-screen bg-background font-sans flex flex-col items-center justify-center">
+        <p className="text-muted-foreground">Loading…</p>
+      </div>
+    );
+  }
+
+  if (!effectiveUser) {
     return (
       <div className="min-h-screen bg-background font-sans flex flex-col">
         <main className="flex-1 px-4 py-8 max-w-md mx-auto w-full flex flex-col justify-center gap-6">
@@ -271,16 +285,13 @@ export function BookingForm({ room, session }: BookingFormProps) {
               className="mt-6 min-h-[48px] w-full"
               onClick={() => {
                 if (typeof window === "undefined") {
-                  signIn("azure-ad", { callbackUrl: `/book/${room.slug}` });
+                  signInAction?.(`/book/${room.slug}`);
                   return;
                 }
                 const pathname = window.location.pathname;
-                const returnTo = pathname.startsWith("/book/")
-                  ? `${window.location.origin}${pathname}`
-                  : `${window.location.origin}/book/${room.slug}`;
-                const stored = pathname.startsWith("/book/") ? pathname : `/book/${room.slug}`;
-                sessionStorage.setItem("booking_return", stored);
-                signIn("azure-ad", { callbackUrl: returnTo });
+                const returnTo = pathname.startsWith("/book/") ? pathname : `/book/${room.slug}`;
+                sessionStorage.setItem("booking_return", returnTo);
+                signInAction?.(returnTo);
               }}
             >
               Sign in with Microsoft
@@ -328,10 +339,10 @@ export function BookingForm({ room, session }: BookingFormProps) {
             {room.name}
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            {session.user?.name ?? session.user?.email ?? "Signed in"}{" "}
+            {effectiveUser?.name ?? effectiveUser?.email ?? "Signed in"}{" "}
             <button
               type="button"
-              onClick={() => signOut()}
+              onClick={() => signOutAction?.()}
               className="underline hover:text-foreground"
             >
               Sign out

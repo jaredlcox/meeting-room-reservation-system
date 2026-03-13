@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Room } from "@/lib/rooms";
+import { apiUrl } from "@/lib/api-url";
 import { StatusCard } from "@/components/kiosk/status-card";
 import { MeetingCard } from "@/components/kiosk/meeting-card";
 import { QuickBook } from "@/components/kiosk/quick-book";
@@ -66,8 +67,8 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
   const fetchRoomState = useCallback(
     async (options?: { skipHoldUpdate?: boolean }) => {
       const [scheduleRes, holdRes] = await Promise.all([
-        fetch(`/api/rooms/${room.slug}/schedule`),
-        fetch(`/api/rooms/${room.slug}/hold`),
+        fetch(apiUrl(`/api/rooms/${room.slug}/schedule`)),
+        fetch(apiUrl(`/api/rooms/${room.slug}/hold`)),
       ]);
 
       if (!scheduleRes.ok) {
@@ -132,7 +133,7 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/rooms/${room.slug}/hold`, { method: "DELETE" });
+        const res = await fetch(apiUrl(`/api/rooms/${room.slug}/hold`), { method: "DELETE" });
         if (res.ok && !cancelled) {
           setHoldActive(false);
           userStartedEarlyThisSessionRef.current = false;
@@ -155,7 +156,7 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
       let cancelled = false;
       (async () => {
         try {
-          const res = await fetch(`/api/rooms/${room.slug}/hold`, { method: "DELETE" });
+          const res = await fetch(apiUrl(`/api/rooms/${room.slug}/hold`), { method: "DELETE" });
           if (res.ok && !cancelled) {
             setHoldActive(false);
             userStartedEarlyThisSessionRef.current = false;
@@ -187,7 +188,7 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/rooms/${room.slug}/hold`, { method: "DELETE" });
+        const res = await fetch(apiUrl(`/api/rooms/${room.slug}/hold`), { method: "DELETE" });
         if (res.ok && !cancelled) {
           setHoldActive(false);
           userStartedEarlyThisSessionRef.current = false;
@@ -262,7 +263,7 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
     setActionSubmitting(true);
     setHoldError(null);
     try {
-      const res = await fetch(`/api/rooms/${room.slug}/hold`, { method: "POST" });
+      const res = await fetch(apiUrl(`/api/rooms/${room.slug}/hold`), { method: "POST" });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
         setHoldError(data.error ?? "Could not start room early.");
@@ -286,8 +287,8 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
       const meetingToEnd = holdActive ? displayCurrentMeeting : currentMeeting;
       const hasMeetingToEnd = !!meetingToEnd;
       const endpoint = hasMeetingToEnd
-        ? `/api/rooms/${room.slug}/end-active`
-        : `/api/rooms/${room.slug}/hold`;
+        ? apiUrl(`/api/rooms/${room.slug}/end-active`)
+        : apiUrl(`/api/rooms/${room.slug}/hold`);
       const method = hasMeetingToEnd ? "POST" : "DELETE";
       const body = hasMeetingToEnd
         ? JSON.stringify({ eventId: meetingToEnd.id })
@@ -303,7 +304,7 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
         // so the UI doesn't stay "In Use" when the schedule is already empty.
         if (res.status === 409 && holdActive) {
           try {
-            await fetch(`/api/rooms/${room.slug}/hold`, { method: "DELETE" });
+            await fetch(apiUrl(`/api/rooms/${room.slug}/hold`), { method: "DELETE" });
           } catch {
             // ignore
           }

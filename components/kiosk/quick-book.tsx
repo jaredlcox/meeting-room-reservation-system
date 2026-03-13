@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { apiUrl } from "@/lib/api-url";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
@@ -32,7 +33,7 @@ export function QuickBook({ roomSlug, options, minutesUntilNext, hasCurrentMeeti
     setStep("submitting");
     setErrorMessage(null);
     try {
-      const res = await fetch(`/api/rooms/${roomSlug}/quick-book`, {
+      const res = await fetch(apiUrl(`/api/rooms/${roomSlug}/quick-book`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
