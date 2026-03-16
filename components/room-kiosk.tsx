@@ -9,6 +9,7 @@ import { QRPanel } from "@/components/kiosk/qr-panel";
 import { ScheduleList, getMeetingStatus } from "@/components/kiosk/schedule-list";
 import type { Meeting, RoomStatus } from "@/components/kiosk/types";
 import type { RoomHoldResponse, ScheduleResponse } from "@/lib/api-types";
+import { apiGet, apiPost, apiDelete } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -66,8 +67,8 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
   const fetchRoomState = useCallback(
     async (options?: { skipHoldUpdate?: boolean }) => {
       const [scheduleRes, holdRes] = await Promise.all([
-        fetch(`/api/rooms/${room.slug}/schedule`),
-        fetch(`/api/rooms/${room.slug}/hold`),
+        apiGet(`/api/rooms/${room.slug}/schedule`),
+        apiGet(`/api/rooms/${room.slug}/hold`),
       ]);
 
       if (!scheduleRes.ok) {
@@ -132,7 +133,7 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/rooms/${room.slug}/hold`, { method: "DELETE" });
+        const res = await apiDelete(`/api/rooms/${room.slug}/hold`);
         if (res.ok && !cancelled) {
           setHoldActive(false);
           userStartedEarlyThisSessionRef.current = false;
@@ -155,7 +156,7 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
       let cancelled = false;
       (async () => {
         try {
-          const res = await fetch(`/api/rooms/${room.slug}/hold`, { method: "DELETE" });
+          const res = await apiDelete(`/api/rooms/${room.slug}/hold`);
           if (res.ok && !cancelled) {
             setHoldActive(false);
             userStartedEarlyThisSessionRef.current = false;
@@ -187,7 +188,7 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/rooms/${room.slug}/hold`, { method: "DELETE" });
+        const res = await apiDelete(`/api/rooms/${room.slug}/hold`);
         if (res.ok && !cancelled) {
           setHoldActive(false);
           userStartedEarlyThisSessionRef.current = false;
@@ -262,7 +263,7 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
     setActionSubmitting(true);
     setHoldError(null);
     try {
-      const res = await fetch(`/api/rooms/${room.slug}/hold`, { method: "POST" });
+      const res = await apiPost(`/api/rooms/${room.slug}/hold`);
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
         setHoldError(data.error ?? "Could not start room early.");
@@ -285,25 +286,15 @@ export default function RoomKiosk({ room }: RoomKioskProps) {
       // When user "started early", displayCurrentMeeting is the meeting to end (even if not started by clock). Otherwise end the current meeting by time.
       const meetingToEnd = holdActive ? displayCurrentMeeting : currentMeeting;
       const hasMeetingToEnd = !!meetingToEnd;
-      const endpoint = hasMeetingToEnd
-        ? `/api/rooms/${room.slug}/end-active`
-        : `/api/rooms/${room.slug}/hold`;
-      const method = hasMeetingToEnd ? "POST" : "DELETE";
-      const body = hasMeetingToEnd
-        ? JSON.stringify({ eventId: meetingToEnd.id })
-        : undefined;
-      const res = await fetch(endpoint, {
-        method,
-        ...(body && { headers: { "Content-Type": "application/json" }, body }),
-      });
+      const res = hasMeetingToEnd
+        ? await apiPost(`/api/rooms/${room.slug}/end-active`, { eventId: meetingToEnd.id })
+        : await apiDelete(`/api/rooms/${room.slug}/hold`);
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
         setHoldError(data.error ?? "Could not stop this room.");
-        // If backend says there's no active meeting to stop (409), clear the "started early" hold
-        // so the UI doesn't stay "In Use" when the schedule is already empty.
         if (res.status === 409 && holdActive) {
           try {
-            await fetch(`/api/rooms/${room.slug}/hold`, { method: "DELETE" });
+            await apiDelete(`/api/rooms/${room.slug}/hold`);
           } catch {
             // ignore
           }

@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
-import { signIn, signOut } from "next-auth/react";
-import type { Session } from "next-auth";
 import type { Room } from "@/lib/rooms";
 import type { TimeSlot, SlotsResponse } from "@/lib/api-types";
+import { apiGet, apiPost, API_URL } from "@/lib/api-client";
 
 /** Slots are 15-min blocks. Returns contiguous minutes available from each slot's start. */
 function getContiguousMinutesBySlot(slots: TimeSlot[]): Map<string, number> {
@@ -82,10 +81,11 @@ type SubmitStatus = "idle" | "submitting" | "success" | "error" | "conflict" | "
 
 interface BookingFormProps {
   room: Room;
-  session: Session | null;
 }
 
-export function BookingForm({ room, session }: BookingFormProps) {
+export function BookingForm({ room }: BookingFormProps) {
+  const [session, setSession] = useState<{ user: { email: string; name?: string } } | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   const [slotsByDate, setSlotsByDate] = useState<Record<string, TimeSlot[]>>({});
   const [slotsLoading, setSlotsLoading] = useState(true);
@@ -100,35 +100,32 @@ export function BookingForm({ room, session }: BookingFormProps) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [status, setStatus] = useState<SubmitStatus>("idle");
 
-  const dateStr = useMemo(() => toDateString(selectedDate), [selectedDate]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || session) return;
-    const canonical = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
-    if (!canonical) return;
+  const checkAuth = useCallback(async () => {
     try {
-      const canonicalOrigin = new URL(canonical).origin;
-      if (window.location.origin !== canonicalOrigin) {
-        window.location.replace(`${canonicalOrigin}${window.location.pathname}${window.location.search}`);
+      const res = await apiGet("/api/auth/user");
+      if (res.ok) {
+        const data = await res.json();
+        setSession({ user: data.user });
+      } else {
+        setSession(null);
       }
     } catch {
-      // ignore invalid URL
+      setSession(null);
+    } finally {
+      setAuthLoading(false);
     }
-  }, [session]);
+  }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !session) return;
-    const returnTo = sessionStorage.getItem("booking_return");
-    const pathname = window.location.pathname;
-    if (returnTo?.startsWith("/book/") && returnTo !== pathname) {
-      sessionStorage.removeItem("booking_return");
-      window.location.replace(returnTo);
-    }
-  }, [session]);
+    checkAuth();
+  }, [checkAuth]);
+
+  const dateStr = useMemo(() => toDateString(selectedDate), [selectedDate]);
+
 
   useEffect(() => {
     setAttendeesLoading(true);
-    fetch("/api/directory/users")
+    apiGet("/api/directory/users")
       .then((res) => (res.ok ? res.json() : { users: [] }))
       .then((data: { users: DirectoryUser[] }) => {
         const all = data.users ?? [];
@@ -151,7 +148,7 @@ export function BookingForm({ room, session }: BookingFormProps) {
     }
     Promise.all(
       dateStrings.map((dateStr) =>
-        fetch(`/api/rooms/${room.slug}/slots?date=${dateStr}`)
+        apiGet(`/api/rooms/${room.slug}/slots?date=${dateStr}`)
           .then((res) => (res.ok ? (res.json() as Promise<SlotsResponse>) : { slots: [] }))
           .then((data) => ({ dateStr, slots: data?.slots ?? [] }))
           .catch(() => ({ dateStr, slots: [] }))
@@ -236,11 +233,7 @@ export function BookingForm({ room, session }: BookingFormProps) {
     };
     if (title.trim()) body.title = title.trim();
     if (selectedAttendeeEmails.size > 0) body.attendeeEmails = Array.from(selectedAttendeeEmails);
-    const res = await fetch(`/api/rooms/${room.slug}/reserve`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const res = await apiPost(`/api/rooms/${room.slug}/reserve`, body);
     if (res.ok) {
       setStatus("success");
     } else if (res.status === 401) {
@@ -252,6 +245,16 @@ export function BookingForm({ room, session }: BookingFormProps) {
     } else {
       setStatus("error");
     }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background font-sans flex flex-col">
+        <main className="flex-1 px-4 py-8 max-w-md mx-auto w-full flex flex-col justify-center gap-6">
+          <p className="text-sm text-muted-foreground text-center">Loading…</p>
+        </main>
+      </div>
+    );
   }
 
   if (!session) {
@@ -270,17 +273,10 @@ export function BookingForm({ room, session }: BookingFormProps) {
               size="lg"
               className="mt-6 min-h-[48px] w-full"
               onClick={() => {
-                if (typeof window === "undefined") {
-                  signIn("azure-ad", { callbackUrl: `/book/${room.slug}` });
-                  return;
-                }
-                const pathname = window.location.pathname;
-                const returnTo = pathname.startsWith("/book/")
-                  ? `${window.location.origin}${pathname}`
-                  : `${window.location.origin}/book/${room.slug}`;
-                const stored = pathname.startsWith("/book/") ? pathname : `/book/${room.slug}`;
-                sessionStorage.setItem("booking_return", stored);
-                signIn("azure-ad", { callbackUrl: returnTo });
+                const callbackUrl = typeof window !== "undefined"
+                  ? `${window.location.origin}/book/${room.slug}`
+                  : `/book/${room.slug}`;
+                window.location.href = `${API_URL}/auth/redirect?callback=${encodeURIComponent(callbackUrl)}`;
               }}
             >
               Sign in with Microsoft
@@ -331,7 +327,10 @@ export function BookingForm({ room, session }: BookingFormProps) {
             {session.user?.name ?? session.user?.email ?? "Signed in"}{" "}
             <button
               type="button"
-              onClick={() => signOut()}
+              onClick={async () => {
+                await apiPost("/auth/logout");
+                setSession(null);
+              }}
               className="underline hover:text-foreground"
             >
               Sign out
