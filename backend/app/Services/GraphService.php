@@ -181,7 +181,7 @@ class GraphService
         $url = self::GRAPH_BASE . "/users/{$encodedEmail}/calendar/events";
         $response = Http::withToken($token)->post($url, $body);
 
-        if (!$response->ok()) {
+        if (!$response->successful()) {
             Log::error('[graph] createRoomReservation failed', [
                 'status' => $response->status(),
                 'body' => $response->body(),
