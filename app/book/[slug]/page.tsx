@@ -1,10 +1,14 @@
 import { notFound } from "next/navigation";
-import { getRoomBySlug } from "@/lib/rooms";
+import { getRoomBySlug, getRoomSlugs } from "@/lib/rooms";
 import { BookingForm } from "@/components/book/booking-form";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
+
+export function generateStaticParams() {
+  return getRoomSlugs().map((slug) => ({ slug }));
+}
 
 export async function generateMetadata({ params }: PageProps) {
   const { slug } = await params;

@@ -1,0 +1,6 @@
+1:"$Sreact.fragment"
+2:I[84942,["/_next/static/chunks/ff1a16fafef87110.js","/_next/static/chunks/21e59c952ea4a480.js","/_next/static/chunks/1e12e05ab51575a3.js"],"BookingForm"]
+3:I[97367,["/_next/static/chunks/ff1a16fafef87110.js","/_next/static/chunks/1929ac635c8c07f9.js"],"OutletBoundary"]
+4:"$Sreact.suspense"
+0:{"buildId":"AK5w9AxiCrGu9tizGWsnU","rsc":["$","$1","c",{"children":[["$","$L2",null,{"room":{"slug":"canvass","name":"Canvass Room","email":"canvassroom@ircuwd.com","bookingPath":"/book/canvass","displayPath":"/rooms/canvass"}}],[["$","script","script-0",{"src":"/_next/static/chunks/ff1a16fafef87110.js","async":true}],["$","script","script-1",{"src":"/_next/static/chunks/21e59c952ea4a480.js","async":true}],["$","script","script-2",{"src":"/_next/static/chunks/1e12e05ab51575a3.js","async":true}]],["$","$L3",null,{"children":["$","$4",null,{"name":"Next.MetadataOutlet","children":"$@5"}]}]]}],"loading":null,"isPartial":false}
+5:null
