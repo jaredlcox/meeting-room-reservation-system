@@ -333,13 +333,15 @@ class GraphService
 
     private function formatInTimeZone(\DateTimeInterface $date, string $timeZone): string
     {
-        $dt = (clone \DateTime::createFromInterface($date))->setTimezone(new \DateTimeZone($timeZone));
+        $dt = new \DateTime('@' . $date->getTimestamp());
+        $dt->setTimezone(new \DateTimeZone($timeZone));
         return $dt->format('Y-m-d\TH:i:s');
     }
 
     private function formatDateAtMinutes(\DateTimeInterface $date, string $timeZone, int $minutesSinceMidnight): string
     {
-        $dt = (clone \DateTime::createFromInterface($date))->setTimezone(new \DateTimeZone($timeZone));
+        $dt = new \DateTime('@' . $date->getTimestamp());
+        $dt->setTimezone(new \DateTimeZone($timeZone));
         $datePart = $dt->format('Y-m-d');
         $h = intdiv($minutesSinceMidnight, 60) % 24;
         $m = $minutesSinceMidnight % 60;
