@@ -18,8 +18,12 @@ class RoomController extends Controller
     private const BUSINESS_END = 1080;   // 18:00
     private const MAX_DAYS_AHEAD = 7;
 
-    public function __construct(private GraphService $graph)
+    /** @var GraphService */
+    private $graph;
+
+    public function __construct(GraphService $graph)
     {
+        $this->graph = $graph;
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
@@ -133,7 +137,7 @@ class RoomController extends Controller
 
         try {
             $date = Carbon::createFromFormat('Y-m-d', $dateStr, $this->roomTimezone())->startOfDay();
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
             return response()->json(['error' => 'Invalid date'], 400);
         }
 
@@ -253,7 +257,7 @@ class RoomController extends Controller
         } else {
             try {
                 $start = Carbon::parse($startTimeStr);
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
                 return response()->json(['error' => 'Invalid startTime'], 400);
             }
             if ($start->lt(now())) {
@@ -322,7 +326,7 @@ class RoomController extends Controller
         if (!empty($data['startTime'])) {
             try {
                 $start = Carbon::parse($data['startTime']);
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
                 return response()->json(['error' => 'Invalid startTime'], 400);
             }
             if ($start->lt(now())) {
